@@ -26,7 +26,7 @@ var chip8_fontset [80]byte = [80]byte{
 
 type Memory struct {
 	memory [4096]byte
-	stack  [16]byte
+	stack  [16]uint16
 }
 
 func (m *Memory) ReadOpcode(PC uint16) uint16 {
