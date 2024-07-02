@@ -5,12 +5,14 @@ import (
 )
 
 type CPU struct {
-	V      [16]byte
-	I      uint16 //12-bits
-	PC     uint16 //12-bits
-	SP     uint16
-	memory *Memory
-	timers *Timers
+	V        [16]byte
+	I        uint16 //12-bits
+	PC       uint16 //12-bits
+	SP       uint16
+	memory   *Memory
+	timers   *Timers
+	gfx      [64 * 32]byte
+	DrawFlag bool
 }
 
 func NewChip8(fileName string) *CPU {
@@ -106,5 +108,25 @@ func (c *CPU) FX33(opcode uint16) func() {
 		c.memory.memory[c.I] = regVal / 100
 		c.memory.memory[c.I+1] = (regVal / 10) % 10
 		c.memory.memory[c.I+2] = regVal % 10
+	}
+}
+
+func (c *CPU) DXYN(opcode uint16) func() {
+	return func() {
+		x := SelectNibble(opcode, 2)
+		y := SelectNibble(opcode, 1)
+		height := SelectNibble(opcode, 0)
+
+		c.V[0xF] = 0
+		for _y := uint16(0); _y < height; _y++ {
+			pixels := c.memory.memory[c.I+_y]
+			for _x := uint16(0); _x < 8; _x++ {
+				if (pixels&(0x80>>_x)) != 0 && c.gfx[(y+_y)*64+x+_x] == 1 {
+					c.V[0xF] = 1
+				}
+				c.gfx[(y+_y)*64+x+_x] ^= ((pixels & (0x80 >> _x)) >> (7 - _x))
+			}
+		}
+		c.DrawFlag = true
 	}
 }
