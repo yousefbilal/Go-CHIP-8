@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 )
 
 type CPU struct {
@@ -13,6 +14,8 @@ type CPU struct {
 	timers   *Timers
 	gfx      [64 * 32]byte
 	DrawFlag bool
+	opcode   uint16
+	keys     [16]bool
 }
 
 func NewChip8(fileName string) *CPU {
@@ -27,10 +30,10 @@ func NewChip8(fileName string) *CPU {
 
 func (c *CPU) EmulationCycle() {
 	//fetch
-	opcode := c.memory.ReadOpcode(c.PC)
+	c.opcode = c.memory.ReadOpcode(c.PC)
 	c.PC += 2
 	//decode
-	instruction, err := c.decode(opcode)
+	instruction, err := c.decode()
 
 	if err != nil {
 		panic(err)
@@ -49,40 +52,28 @@ func (c *CPU) EmulationCycle() {
 	}
 }
 
-func (c *CPU) decode(opcode uint16) (func(), error) {
-	switch opcode & 0xF000 {
+func (c *CPU) decode() (func(), error) {
+	switch c.opcode & 0xF000 {
 	case 0x2000:
-		return c._2NNN(opcode), nil
+		return c._2NNN, nil
 	case 0x8000:
-		switch opcode & 0x000F {
+		switch c.opcode & 0x000F {
 		case 0x0004:
-			return c._8XY4(opcode), nil
+			return c._8XY4, nil
 		default:
-			return nil, fmt.Errorf("unknown opcode in 0x8000 series: %x", opcode)
+			return nil, fmt.Errorf("unknown opcode in 0x8000 series: %x", c.opcode)
 		}
 	case 0xA000:
-		return c.ANNN(opcode), nil
+		return c.ANNN, nil
 	case 0xF000:
-		switch opcode & 0x00FF {
+		switch c.opcode & 0x00FF {
 		case 0x0033:
-			return c.FX33(opcode), nil
+			return c.FX33, nil
 		default:
-			return nil, fmt.Errorf("unknown opcode in 0xF000 series: %x", opcode)
+			return nil, fmt.Errorf("unknown opcode in 0xF000 series: %x", c.opcode)
 		}
 	default:
-		return nil, fmt.Errorf("unknown opcode: %x", opcode)
-	}
-}
-func (c *CPU) _2NNN(opcode uint16) func() {
-	return func() {
-		c.push(c.PC)
-		c.PC = opcode & 0x0FFF
-	}
-}
-
-func (c *CPU) ANNN(opcode uint16) func() {
-	return func() {
-		c.I = opcode & 0x0FFF
+		return nil, fmt.Errorf("unknown opcode: %x", c.opcode)
 	}
 }
 
@@ -91,42 +82,209 @@ func (c *CPU) push(val uint16) {
 	c.SP++
 }
 
-func (c *CPU) _8XY4(opcode uint16) func() {
-	return func() {
-		if c.V[SelectNibble(opcode, 2)] > (0xFF - c.V[SelectNibble(opcode, 1)]) {
-			c.V[0xF] = 1
-		} else {
-			c.V[0xF] = 1
-		}
-		c.V[SelectNibble(opcode, 2)] += c.V[SelectNibble(opcode, 1)]
+func (c *CPU) pop() uint16 {
+	c.SP--
+	return c.memory.stack[c.SP]
+}
+
+func (c *CPU) _00E0() {
+	for i := 0; i < 64*32; i++ {
+		c.gfx[i] = 0
+	}
+	c.DrawFlag = true
+}
+
+func (c *CPU) _00EE() {
+	c.PC = c.pop()
+}
+
+func (c *CPU) _1NNN() {
+	c.PC = c.opcode & 0x0FFF
+}
+
+func (c *CPU) _2NNN() {
+	c.push(c.PC)
+	c.PC = c.opcode & 0x0FFF
+}
+
+func (c *CPU) _3XKK() {
+	if c.V[SelectNibble(c.opcode, 2)] == byte(c.opcode&0x00FF) {
+		c.PC += 2
 	}
 }
 
-func (c *CPU) FX33(opcode uint16) func() {
-	return func() {
-		regVal := c.V[SelectNibble(opcode, 2)]
-		c.memory.memory[c.I] = regVal / 100
-		c.memory.memory[c.I+1] = (regVal / 10) % 10
-		c.memory.memory[c.I+2] = regVal % 10
+func (c *CPU) _4XKK() {
+	if c.V[SelectNibble(c.opcode, 2)] != byte(c.opcode&0x00FF) {
+		c.PC += 2
 	}
 }
 
-func (c *CPU) DXYN(opcode uint16) func() {
-	return func() {
-		x := SelectNibble(opcode, 2)
-		y := SelectNibble(opcode, 1)
-		height := SelectNibble(opcode, 0)
+func (c *CPU) _5XY0() {
+	if c.V[SelectNibble(c.opcode, 2)] == c.V[SelectNibble(c.opcode, 1)] {
+		c.PC += 2
+	}
+}
 
+func (c *CPU) _6XKK() {
+	c.V[SelectNibble(c.opcode, 2)] = byte(c.opcode & 0x00FF)
+}
+
+func (c *CPU) _7XKK() {
+	c.V[SelectNibble(c.opcode, 2)] += byte(c.opcode & 0x00FF)
+}
+
+func (c *CPU) _8XY0() {
+	c.V[SelectNibble(c.opcode, 2)] = c.V[SelectNibble(c.opcode, 1)]
+}
+
+func (c *CPU) _8XY1() {
+	c.V[SelectNibble(c.opcode, 2)] |= c.V[SelectNibble(c.opcode, 1)]
+}
+
+func (c *CPU) _8XY2() {
+	c.V[SelectNibble(c.opcode, 2)] &= c.V[SelectNibble(c.opcode, 1)]
+}
+
+func (c *CPU) _8XY3() {
+	c.V[SelectNibble(c.opcode, 2)] ^= c.V[SelectNibble(c.opcode, 1)]
+}
+
+func (c *CPU) _8XY4() {
+	x := SelectNibble(c.opcode, 2)
+	y := SelectNibble(c.opcode, 1)
+	if c.V[x] > (0xFF - c.V[y]) {
+		c.V[0xF] = 1
+	} else {
 		c.V[0xF] = 0
-		for _y := uint16(0); _y < height; _y++ {
-			pixels := c.memory.memory[c.I+_y]
-			for _x := uint16(0); _x < 8; _x++ {
-				if (pixels&(0x80>>_x)) != 0 && c.gfx[(y+_y)*64+x+_x] == 1 {
-					c.V[0xF] = 1
-				}
-				c.gfx[(y+_y)*64+x+_x] ^= ((pixels & (0x80 >> _x)) >> (7 - _x))
+	}
+	c.V[x] += c.V[y]
+}
+
+func (c *CPU) _8XY5() {
+	x := SelectNibble(c.opcode, 2)
+	y := SelectNibble(c.opcode, 1)
+	if c.V[x] > c.V[y] {
+		c.V[0xF] = 1
+	} else {
+		c.V[0xF] = 0
+	}
+	c.V[x] -= c.V[y]
+}
+
+func (c *CPU) _8XY6() {
+	x := SelectNibble(c.opcode, 2)
+	c.V[0xF] = c.V[x] & 0x1
+	c.V[x] >>= c.V[SelectNibble(c.opcode, 1)]
+}
+
+func (c *CPU) _8XY7() {
+	x := SelectNibble(c.opcode, 2)
+	y := SelectNibble(c.opcode, 1)
+	if c.V[y] > c.V[x] {
+		c.V[0xF] = 1
+	} else {
+		c.V[0xF] = 0
+	}
+	c.V[x] = c.V[y] - c.V[x]
+}
+
+func (c *CPU) _8XYE() {
+	x := SelectNibble(c.opcode, 2)
+	c.V[0xF] = (c.V[x] & 0x80) >> 7
+	c.V[x] <<= c.V[SelectNibble(c.opcode, 1)]
+}
+
+func (c *CPU) _9XY0() {
+	if c.V[SelectNibble(c.opcode, 2)] != c.V[SelectNibble(c.opcode, 1)] {
+		c.PC += 2
+	}
+}
+
+func (c *CPU) ANNN() {
+	c.I = c.opcode & 0x0FFF
+}
+
+func (c *CPU) BNNN() {
+	c.PC = uint16(c.V[0]) + (c.opcode & 0x0FFF)
+}
+
+func (c *CPU) CXKK() {
+	c.V[SelectNibble(c.opcode, 2)] = byte(rand.Intn(256)) & byte(c.opcode&0x00FF)
+}
+
+func (c *CPU) DXYN() {
+
+	x := SelectNibble(c.opcode, 2)
+	y := SelectNibble(c.opcode, 1)
+	height := SelectNibble(c.opcode, 0)
+
+	c.V[0xF] = 0
+	for _y := uint16(0); _y < height; _y++ {
+		pixels := c.memory.memory[c.I+_y]
+		for _x := uint16(0); _x < 8; _x++ {
+			if (pixels&(0x80>>_x)) != 0 && c.gfx[(y+_y)*64+x+_x] == 1 {
+				c.V[0xF] = 1
 			}
+			c.gfx[(y+_y)*64+x+_x] ^= ((pixels & (0x80 >> _x)) >> (7 - _x))
 		}
-		c.DrawFlag = true
+	}
+	c.DrawFlag = true
+
+}
+
+func (c *CPU) EX9E() {
+	if c.keys[c.V[SelectNibble(c.opcode, 2)&0xF]] {
+		c.PC += 2
+	}
+}
+
+func (c *CPU) EXA1() {
+	if !c.keys[c.V[SelectNibble(c.opcode, 2)&0xF]] {
+		c.PC += 2
+	}
+}
+
+func (c *CPU) FX07() {
+	c.V[SelectNibble(c.opcode, 2)] = c.timers.delayTimer
+}
+
+func (c *CPU) FX0A() {
+	//TODO
+}
+
+func (c *CPU) FX15() {
+	c.timers.delayTimer = c.V[SelectNibble(c.opcode, 2)] 
+}
+
+func (c *CPU) FX18() {
+	c.timers.soundTimer = c.V[SelectNibble(c.opcode, 2)] 
+}
+
+func (c *CPU) FX1E() {
+	c.I += uint16(c.V[SelectNibble(c.opcode, 2)]) 
+}
+
+func (c *CPU) FX29() {
+	c.I = 5 * uint16(c.V[SelectNibble(c.opcode, 2)] & 0xF) 
+}
+
+func (c *CPU) FX33() {
+
+	regVal := c.V[SelectNibble(c.opcode, 2)]
+	c.memory.memory[c.I] = regVal / 100
+	c.memory.memory[c.I+1] = (regVal / 10) % 10
+	c.memory.memory[c.I+2] = regVal % 10
+
+}
+
+func (c *CPU) FX55() {
+	for i, v := range c.V {
+		c.memory.memory[c.I + uint16(i)] = v
+	}
+}
+
+func (c *CPU) FX65() {
+	for i := range c.V {
+		c.V[i] = c.memory.memory[c.I + uint16(i)]
 	}
 }
