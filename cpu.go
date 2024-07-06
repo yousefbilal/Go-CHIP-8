@@ -5,6 +5,9 @@ import (
 	"math/rand"
 )
 
+const bufferWidth = 64
+const bufferHeight = 32
+
 type CPU struct {
 	V      [16]byte
 	I      uint16 //12-bits
@@ -12,7 +15,7 @@ type CPU struct {
 	SP     uint16
 	memory *Memory
 	timers *Timers
-	gfx    [64 * 32]byte
+	gfx    [bufferWidth * bufferHeight]byte
 	opcode uint16
 	keys   [16]bool
 }
@@ -149,7 +152,7 @@ func (c *CPU) pop() uint16 {
 
 func (c *CPU) _00E0() {
 	//clear the display
-	for i := 0; i < 64*32; i++ {
+	for i := 0; i < bufferWidth*bufferHeight; i++ {
 		c.gfx[i] = 0
 	}
 }
@@ -304,8 +307,8 @@ func (c *CPU) DXYN() {
 		pixels := c.memory.memory[c.I+_y]
 		for _x := uint16(0); _x < 8; _x++ {
 			pixel := (pixels & (0x80 >> _x)) >> (7 - _x)
-			x_pos := (x + _x) % 64
-			y_pos := (y + _y) % 32
+			x_pos := (x + _x) % bufferWidth
+			y_pos := (y + _y) % bufferHeight
 			if pixel == 1 && c.gfx[(y_pos)*64+x_pos] == 1 {
 				c.V[0xF] = 1
 			}

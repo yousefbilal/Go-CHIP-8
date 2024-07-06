@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"image"
 	"image/color"
 
@@ -101,15 +102,16 @@ func (g *GraphicsHandler) drawGraphics(chip8 *CPU) {
 	}
 }
 
-const (
-	bufferWidth  = 64
-	bufferHeight = 32
-	pixelSize    = 10
-)
+const pixelSize = 10
 
 func run() {
 
-	chip8 := NewChip8("roms/pong2.c8")
+	fileName := flag.String("file", "", "file name of the program to run")
+	flag.Parse()
+	chip8 := NewChip8(*fileName)
+	if *fileName == "" {
+		panic("file name not specified")
+	}
 
 	g := NewGraphics(bufferWidth, bufferHeight, pixelSize)
 
