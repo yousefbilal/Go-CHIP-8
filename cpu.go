@@ -54,29 +54,89 @@ func (c *CPU) EmulationCycle() {
 
 func (c *CPU) decode() (func(), error) {
 	switch c.opcode & 0xF000 {
+	case 0x0000:
+		switch c.opcode & 0x000F {
+		case 0x0000:
+			return c._00E0, nil
+		case 0x000E:
+			return c._00EE, nil
+		}
+	case 0x1000:
+		return c._1NNN, nil
 	case 0x2000:
 		return c._2NNN, nil
+	case 0x3000:
+		return c._3XKK, nil
+	case 0x4000:
+		return c._4XKK, nil
+	case 0x5000:
+		return c._5XY0, nil
+	case 0x6000:
+		return c._6XKK, nil
+	case 0x7000:
+		return c._7XKK, nil
 	case 0x8000:
 		switch c.opcode & 0x000F {
+		case 0x0000:
+			return c._8XY0, nil
+		case 0x0001:
+			return c._8XY1, nil
+		case 0x0002:
+			return c._8XY2, nil
+		case 0x0003:
+			return c._8XY3, nil
 		case 0x0004:
 			return c._8XY4, nil
-		default:
-			return nil, fmt.Errorf("unknown opcode in 0x8000 series: %x", c.opcode)
+		case 0x0005:
+			return c._8XY5, nil
+		case 0x0006:
+			return c._8XY6, nil
+		case 0x0007:
+			return c._8XY7, nil
+		case 0x000E:
+			return c._8XYE, nil
 		}
+	case 0x9000:
+		return c._9XY0, nil
 	case 0xA000:
 		return c.ANNN, nil
+	case 0xB000:
+		return c.BNNN, nil
+	case 0xC000:
+		return c.CXKK, nil
+	case 0xD000:
+		return c.DXYN, nil
+	case 0xE000:
+		switch c.opcode & 0x000F {
+		case 0x0001:
+			return c.EXA1, nil
+		case 0x000E:
+			return c.EX9E, nil
+		}
 	case 0xF000:
 		switch c.opcode & 0x00FF {
+		case 0x0007:
+			return c.FX07, nil
+		case 0x000A:
+			return c.FX0A, nil
+		case 0x0015:
+			return c.FX15, nil
+		case 0x0018:
+			return c.FX18, nil
+		case 0x001E:
+			return c.FX1E, nil
+		case 0x0029:
+			return c.FX29, nil
 		case 0x0033:
 			return c.FX33, nil
-		default:
-			return nil, fmt.Errorf("unknown opcode in 0xF000 series: %x", c.opcode)
+		case 0x0055:
+			return c.FX55, nil
+		case 0x0065:
+			return c.FX65, nil
 		}
-	default:
-		return nil, fmt.Errorf("unknown opcode: %x", c.opcode)
 	}
+	return nil, fmt.Errorf("unknown opcode: %x", c.opcode)
 }
-
 func (c *CPU) push(val uint16) {
 	c.memory.stack[c.SP] = val
 	c.SP++
@@ -249,23 +309,23 @@ func (c *CPU) FX07() {
 }
 
 func (c *CPU) FX0A() {
-	//TODO
+
 }
 
 func (c *CPU) FX15() {
-	c.timers.delayTimer = c.V[SelectNibble(c.opcode, 2)] 
+	c.timers.delayTimer = c.V[SelectNibble(c.opcode, 2)]
 }
 
 func (c *CPU) FX18() {
-	c.timers.soundTimer = c.V[SelectNibble(c.opcode, 2)] 
+	c.timers.soundTimer = c.V[SelectNibble(c.opcode, 2)]
 }
 
 func (c *CPU) FX1E() {
-	c.I += uint16(c.V[SelectNibble(c.opcode, 2)]) 
+	c.I += uint16(c.V[SelectNibble(c.opcode, 2)])
 }
 
 func (c *CPU) FX29() {
-	c.I = 5 * uint16(c.V[SelectNibble(c.opcode, 2)] & 0xF) 
+	c.I = 5 * uint16(c.V[SelectNibble(c.opcode, 2)]&0xF)
 }
 
 func (c *CPU) FX33() {
@@ -279,12 +339,12 @@ func (c *CPU) FX33() {
 
 func (c *CPU) FX55() {
 	for i, v := range c.V {
-		c.memory.memory[c.I + uint16(i)] = v
+		c.memory.memory[c.I+uint16(i)] = v
 	}
 }
 
 func (c *CPU) FX65() {
 	for i := range c.V {
-		c.V[i] = c.memory.memory[c.I + uint16(i)]
+		c.V[i] = c.memory.memory[c.I+uint16(i)]
 	}
 }
