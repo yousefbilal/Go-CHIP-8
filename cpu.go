@@ -6,16 +6,15 @@ import (
 )
 
 type CPU struct {
-	V        [16]byte
-	I        uint16 //12-bits
-	PC       uint16 //12-bits
-	SP       uint16
-	memory   *Memory
-	timers   *Timers
-	gfx      [64 * 32]byte
-	DrawFlag bool
-	opcode   uint16
-	keys     [16]bool
+	V      [16]byte
+	I      uint16 //12-bits
+	PC     uint16 //12-bits
+	SP     uint16
+	memory *Memory
+	timers *Timers
+	gfx    [64 * 32]byte
+	opcode uint16
+	keys   [16]bool
 }
 
 func NewChip8(fileName string) *CPU {
@@ -31,6 +30,8 @@ func NewChip8(fileName string) *CPU {
 func (c *CPU) EmulationCycle() {
 	//fetch
 	c.opcode = c.memory.ReadOpcode(c.PC)
+	fmt.Printf("opcode: %x\n", c.opcode)
+	fmt.Printf("PC: %v\n", c.PC)
 	c.PC += 2
 	//decode
 	instruction, err := c.decode()
@@ -47,8 +48,9 @@ func (c *CPU) EmulationCycle() {
 
 	if c.timers.soundTimer > 0 {
 		c.timers.soundTimer--
-	} else {
-		fmt.Println("BEEP")
+		if c.timers.soundTimer == 0 {
+			fmt.Println("BEEP")
+		}
 	}
 }
 
@@ -151,7 +153,6 @@ func (c *CPU) _00E0() {
 	for i := 0; i < 64*32; i++ {
 		c.gfx[i] = 0
 	}
-	c.DrawFlag = true
 }
 
 func (c *CPU) _00EE() {
@@ -274,22 +275,23 @@ func (c *CPU) CXKK() {
 
 func (c *CPU) DXYN() {
 
-	x := SelectNibble(c.opcode, 2)
-	y := SelectNibble(c.opcode, 1)
+	x := uint16(c.V[SelectNibble(c.opcode, 2)])
+	y := uint16(c.V[SelectNibble(c.opcode, 1)])
 	height := SelectNibble(c.opcode, 0)
 
 	c.V[0xF] = 0
 	for _y := uint16(0); _y < height; _y++ {
 		pixels := c.memory.memory[c.I+_y]
 		for _x := uint16(0); _x < 8; _x++ {
-			if (pixels&(0x80>>_x)) != 0 && c.gfx[(y+_y)*64+x+_x] == 1 {
+			pixel := (pixels & (0x80 >> _x)) >> (7 - _x)
+			x_pos := (x + _x) % 64
+			y_pos := (y + _y) % 32
+			if pixel == 1 && c.gfx[(y_pos)*64+x_pos] == 1 {
 				c.V[0xF] = 1
 			}
-			c.gfx[(y+_y)*64+x+_x] ^= ((pixels & (0x80 >> _x)) >> (7 - _x))
+			c.gfx[(y_pos)*64+x_pos] ^= pixel
 		}
 	}
-	c.DrawFlag = true
-
 }
 
 func (c *CPU) EX9E() {
@@ -299,7 +301,7 @@ func (c *CPU) EX9E() {
 }
 
 func (c *CPU) EXA1() {
-	if !c.keys[c.V[SelectNibble(c.opcode, 2)&0xF]] {
+	if !c.keys[c.V[SelectNibble(c.opcode, 2)]&0xF] {
 		c.PC += 2
 	}
 }
@@ -309,7 +311,14 @@ func (c *CPU) FX07() {
 }
 
 func (c *CPU) FX0A() {
-
+	for i, v := range c.keys {
+		if v {
+			c.V[SelectNibble(c.opcode, 2)] = byte(i)
+			return
+		}
+	}
+	//return to the same instruction
+	c.opcode -= 2
 }
 
 func (c *CPU) FX15() {

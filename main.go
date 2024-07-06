@@ -3,6 +3,7 @@ package main
 import (
 	"image"
 	"image/color"
+	"time"
 
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/pixelgl"
@@ -18,6 +19,18 @@ type GraphicsHandler struct {
 	pixelSize    int
 }
 
+/*
+Keypad                   Keyboard
++-+-+-+-+                +-+-+-+-+
+|1|2|3|C|                |1|2|3|4|
++-+-+-+-+                +-+-+-+-+
+|4|5|6|D|                |Q|W|E|R|
++-+-+-+-+       =>       +-+-+-+-+
+|7|8|9|E|                |A|S|D|F|
++-+-+-+-+                +-+-+-+-+
+|A|0|B|F|                |Z|X|C|V|
++-+-+-+-+                +-+-+-+-+
+*/
 func NewGraphics(bufferWidth, bufferHeight, pixelSize int) *GraphicsHandler {
 	windowWidth := bufferWidth * pixelSize
 	windowHeight := bufferHeight * pixelSize
@@ -47,12 +60,35 @@ func NewGraphics(bufferWidth, bufferHeight, pixelSize int) *GraphicsHandler {
 	}
 }
 
-const (
-	bufferWidth  = 64
-	bufferHeight = 32
-	pixelSize    = 10
-)
+func (g *GraphicsHandler) setKeys(chip8 *CPU) {
+	buttons := []pixelgl.Button{
+		pixelgl.KeyX, pixelgl.Key1, pixelgl.Key2, pixelgl.Key3,
+		pixelgl.KeyQ, pixelgl.KeyW, pixelgl.KeyE, pixelgl.KeyA,
+		pixelgl.KeyS, pixelgl.KeyD, pixelgl.KeyZ, pixelgl.KeyC,
+		pixelgl.Key4, pixelgl.KeyR, pixelgl.KeyF, pixelgl.KeyV,
+	}
+	for i, v := range buttons {
+		chip8.keys[i] = g.win.Pressed(v)
+	}
 
+	// fmt.Printf(
+	// 	`
+	// 	+-+-+-+-+
+	// 	|%v|%v|%v|%v|
+	// 	+-+-+-+-+
+	// 	|%v|%v|%v|%v|
+	// 	+-+-+-+-+
+	// 	|%v|%v|%v|%v|
+	// 	+-+-+-+-+
+	// 	|%v|%v|%v|%v|
+	// 	+-+-+-+-+
+	// 	`,
+	// 	chip8.keys[1], chip8.keys[2], chip8.keys[3], chip8.keys[0xC],
+	// 	chip8.keys[4], chip8.keys[5], chip8.keys[6], chip8.keys[0xD],
+	// 	chip8.keys[7], chip8.keys[8], chip8.keys[9], chip8.keys[0xE],
+	// 	chip8.keys[0xA], chip8.keys[0], chip8.keys[0xB], chip8.keys[0xF],
+	// )
+}
 func (g *GraphicsHandler) drawGraphics(chip8 *CPU) {
 	for y := 0; y < 32; y++ {
 		for x := 0; x < 64; x++ {
@@ -66,17 +102,27 @@ func (g *GraphicsHandler) drawGraphics(chip8 *CPU) {
 	}
 }
 
+const (
+	bufferWidth  = 64
+	bufferHeight = 32
+	pixelSize    = 10
+)
+
 func run() {
 
-	chip8 := NewChip8("file")
+	chip8 := NewChip8("roms/invaders.c8")
 
 	g := NewGraphics(bufferWidth, bufferHeight, pixelSize)
 
 	g.win.Clear(colornames.Black)
 
 	for !g.win.Closed() {
+		g.win.Clear(colornames.Black)
+		chip8.EmulationCycle()
 		g.drawGraphics(chip8)
 		g.win.Update()
+		g.setKeys(chip8)
+		time.Sleep(1 * time.Millisecond)
 	}
 }
 

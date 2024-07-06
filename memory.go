@@ -44,8 +44,8 @@ func NewMemory(fileName string) *Memory {
 	buffer := loadFile(fileName)
 	// 512 == 0x200 (offset of the program in memory)
 	for i := range buffer {
-		mem.memory[i + 512] = buffer[i]
-	} 
+		mem.memory[i+512] = buffer[i]
+	}
 	return &mem
 }
 
