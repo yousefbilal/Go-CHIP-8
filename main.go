@@ -3,7 +3,6 @@ package main
 import (
 	"image"
 	"image/color"
-	"time"
 
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/pixelgl"
@@ -110,7 +109,7 @@ const (
 
 func run() {
 
-	chip8 := NewChip8("roms/invaders.c8")
+	chip8 := NewChip8("roms/pong2.c8")
 
 	g := NewGraphics(bufferWidth, bufferHeight, pixelSize)
 
@@ -122,7 +121,7 @@ func run() {
 		g.drawGraphics(chip8)
 		g.win.Update()
 		g.setKeys(chip8)
-		time.Sleep(1 * time.Millisecond)
+		// time.Sleep(1 * time.Millisecond)
 	}
 }
 

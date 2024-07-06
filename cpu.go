@@ -30,8 +30,6 @@ func NewChip8(fileName string) *CPU {
 func (c *CPU) EmulationCycle() {
 	//fetch
 	c.opcode = c.memory.ReadOpcode(c.PC)
-	fmt.Printf("opcode: %x\n", c.opcode)
-	fmt.Printf("PC: %v\n", c.PC)
 	c.PC += 2
 	//decode
 	instruction, err := c.decode()
@@ -150,67 +148,81 @@ func (c *CPU) pop() uint16 {
 }
 
 func (c *CPU) _00E0() {
+	//clear the display
 	for i := 0; i < 64*32; i++ {
 		c.gfx[i] = 0
 	}
 }
 
 func (c *CPU) _00EE() {
+	//return from subroutine
 	c.PC = c.pop()
 }
 
 func (c *CPU) _1NNN() {
+	//jump to nnn
 	c.PC = c.opcode & 0x0FFF
 }
 
 func (c *CPU) _2NNN() {
+	//call subroutine at nnn
 	c.push(c.PC)
 	c.PC = c.opcode & 0x0FFF
 }
 
 func (c *CPU) _3XKK() {
+	//skip next instruction if Vx == kk
 	if c.V[SelectNibble(c.opcode, 2)] == byte(c.opcode&0x00FF) {
 		c.PC += 2
 	}
 }
 
 func (c *CPU) _4XKK() {
+	//skip next instruction if Vx != kk.
 	if c.V[SelectNibble(c.opcode, 2)] != byte(c.opcode&0x00FF) {
 		c.PC += 2
 	}
 }
 
 func (c *CPU) _5XY0() {
+	//skip next instruction if Vx == Vy
 	if c.V[SelectNibble(c.opcode, 2)] == c.V[SelectNibble(c.opcode, 1)] {
 		c.PC += 2
 	}
 }
 
 func (c *CPU) _6XKK() {
+	//load kk into Vx (Vx = kk)
 	c.V[SelectNibble(c.opcode, 2)] = byte(c.opcode & 0x00FF)
 }
 
 func (c *CPU) _7XKK() {
+	//Vx = Vx + kk
 	c.V[SelectNibble(c.opcode, 2)] += byte(c.opcode & 0x00FF)
 }
 
 func (c *CPU) _8XY0() {
+	//set Vx = Vy
 	c.V[SelectNibble(c.opcode, 2)] = c.V[SelectNibble(c.opcode, 1)]
 }
 
 func (c *CPU) _8XY1() {
+	//Vx = Vx OR Vy
 	c.V[SelectNibble(c.opcode, 2)] |= c.V[SelectNibble(c.opcode, 1)]
 }
 
 func (c *CPU) _8XY2() {
+	//Vx = Vx AND Vy
 	c.V[SelectNibble(c.opcode, 2)] &= c.V[SelectNibble(c.opcode, 1)]
 }
 
 func (c *CPU) _8XY3() {
+	//Vx = Vx XOR Vy
 	c.V[SelectNibble(c.opcode, 2)] ^= c.V[SelectNibble(c.opcode, 1)]
 }
 
 func (c *CPU) _8XY4() {
+	//Vx = Vx + Vy, set Vy = carry
 	x := SelectNibble(c.opcode, 2)
 	y := SelectNibble(c.opcode, 1)
 	if c.V[x] > (0xFF - c.V[y]) {
@@ -222,6 +234,7 @@ func (c *CPU) _8XY4() {
 }
 
 func (c *CPU) _8XY5() {
+	//Vx = Vx - Vy, set VF = NOT borrow
 	x := SelectNibble(c.opcode, 2)
 	y := SelectNibble(c.opcode, 1)
 	if c.V[x] > c.V[y] {
@@ -233,12 +246,14 @@ func (c *CPU) _8XY5() {
 }
 
 func (c *CPU) _8XY6() {
+	//Vx = Vx SHR 1
 	x := SelectNibble(c.opcode, 2)
 	c.V[0xF] = c.V[x] & 0x1
-	c.V[x] >>= c.V[SelectNibble(c.opcode, 1)]
+	c.V[x] >>= 1
 }
 
 func (c *CPU) _8XY7() {
+	//Vx = Vy - Vx, set VF = NOT borrow.
 	x := SelectNibble(c.opcode, 2)
 	y := SelectNibble(c.opcode, 1)
 	if c.V[y] > c.V[x] {
@@ -250,31 +265,36 @@ func (c *CPU) _8XY7() {
 }
 
 func (c *CPU) _8XYE() {
+	//Vx = Vx SHL 1
 	x := SelectNibble(c.opcode, 2)
 	c.V[0xF] = (c.V[x] & 0x80) >> 7
-	c.V[x] <<= c.V[SelectNibble(c.opcode, 1)]
+	c.V[x] <<= 1
 }
 
 func (c *CPU) _9XY0() {
+	//Skip next instruction if Vx != Vy.
 	if c.V[SelectNibble(c.opcode, 2)] != c.V[SelectNibble(c.opcode, 1)] {
 		c.PC += 2
 	}
 }
 
 func (c *CPU) ANNN() {
+	//I = nnn
 	c.I = c.opcode & 0x0FFF
 }
 
 func (c *CPU) BNNN() {
+	//Jump to location nnn + V0.
 	c.PC = uint16(c.V[0]) + (c.opcode & 0x0FFF)
 }
 
 func (c *CPU) CXKK() {
+	//Vx = random byte AND kk.
 	c.V[SelectNibble(c.opcode, 2)] = byte(rand.Intn(256)) & byte(c.opcode&0x00FF)
 }
 
 func (c *CPU) DXYN() {
-
+	//Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision
 	x := uint16(c.V[SelectNibble(c.opcode, 2)])
 	y := uint16(c.V[SelectNibble(c.opcode, 1)])
 	height := SelectNibble(c.opcode, 0)
@@ -295,22 +315,26 @@ func (c *CPU) DXYN() {
 }
 
 func (c *CPU) EX9E() {
-	if c.keys[c.V[SelectNibble(c.opcode, 2)&0xF]] {
+	//Skip next instruction if key with the value of Vx is pressed
+	if c.keys[c.V[SelectNibble(c.opcode, 2)]&0xF] {
 		c.PC += 2
 	}
 }
 
 func (c *CPU) EXA1() {
+	//Skip next instruction if key with the value of Vx is not pressed
 	if !c.keys[c.V[SelectNibble(c.opcode, 2)]&0xF] {
 		c.PC += 2
 	}
 }
 
 func (c *CPU) FX07() {
+	//Vx = delay timer value
 	c.V[SelectNibble(c.opcode, 2)] = c.timers.delayTimer
 }
 
 func (c *CPU) FX0A() {
+	//Wait for a key press, store the value of the key in Vx
 	for i, v := range c.keys {
 		if v {
 			c.V[SelectNibble(c.opcode, 2)] = byte(i)
@@ -322,23 +346,27 @@ func (c *CPU) FX0A() {
 }
 
 func (c *CPU) FX15() {
+	//delay timer = Vx
 	c.timers.delayTimer = c.V[SelectNibble(c.opcode, 2)]
 }
 
 func (c *CPU) FX18() {
+	//sound timer = Vx
 	c.timers.soundTimer = c.V[SelectNibble(c.opcode, 2)]
 }
 
 func (c *CPU) FX1E() {
+	//I = I + Vx
 	c.I += uint16(c.V[SelectNibble(c.opcode, 2)])
 }
 
 func (c *CPU) FX29() {
+	//I = location of sprite for digit Vx
 	c.I = 5 * uint16(c.V[SelectNibble(c.opcode, 2)]&0xF)
 }
 
 func (c *CPU) FX33() {
-
+	//Store BCD representation of Vx in memory locations I, I+1, and I+2
 	regVal := c.V[SelectNibble(c.opcode, 2)]
 	c.memory.memory[c.I] = regVal / 100
 	c.memory.memory[c.I+1] = (regVal / 10) % 10
@@ -347,13 +375,15 @@ func (c *CPU) FX33() {
 }
 
 func (c *CPU) FX55() {
-	for i, v := range c.V {
-		c.memory.memory[c.I+uint16(i)] = v
+	//Store registers V0 through Vx in memory starting at location I
+	for i := uint16(0); i < SelectNibble(c.opcode, 2); i++ {
+		c.memory.memory[c.I+i] = c.V[i]
 	}
 }
 
 func (c *CPU) FX65() {
-	for i := range c.V {
-		c.V[i] = c.memory.memory[c.I+uint16(i)]
+	//Read registers V0 through Vx from memory starting at location I
+	for i := uint16(0); i < SelectNibble(c.opcode, 2); i++ {
+		c.V[i] = c.memory.memory[c.I+i]
 	}
 }
