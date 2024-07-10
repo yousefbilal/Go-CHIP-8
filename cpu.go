@@ -50,7 +50,7 @@ func (c *CPU) EmulationCycle() {
 	if c.timers.soundTimer > 0 {
 		c.timers.soundTimer--
 		if c.timers.soundTimer == 0 {
-			fmt.Println("BEEP")
+			fmt.Print("\a")
 		}
 	}
 }

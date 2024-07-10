@@ -4,9 +4,11 @@ import (
 	"flag"
 	"image"
 	"image/color"
+	"log"
 
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/pixelgl"
+	"github.com/jroimartin/gocui"
 	"golang.org/x/image/colornames"
 )
 
@@ -70,24 +72,6 @@ func (g *GraphicsHandler) setKeys(chip8 *CPU) {
 	for i, v := range buttons {
 		chip8.keys[i] = g.win.Pressed(v)
 	}
-
-	// fmt.Printf(
-	// 	`
-	// 	+-+-+-+-+
-	// 	|%v|%v|%v|%v|
-	// 	+-+-+-+-+
-	// 	|%v|%v|%v|%v|
-	// 	+-+-+-+-+
-	// 	|%v|%v|%v|%v|
-	// 	+-+-+-+-+
-	// 	|%v|%v|%v|%v|
-	// 	+-+-+-+-+
-	// 	`,
-	// 	chip8.keys[1], chip8.keys[2], chip8.keys[3], chip8.keys[0xC],
-	// 	chip8.keys[4], chip8.keys[5], chip8.keys[6], chip8.keys[0xD],
-	// 	chip8.keys[7], chip8.keys[8], chip8.keys[9], chip8.keys[0xE],
-	// 	chip8.keys[0xA], chip8.keys[0], chip8.keys[0xB], chip8.keys[0xF],
-	// )
 }
 func (g *GraphicsHandler) drawGraphics(chip8 *CPU) {
 	for y := 0; y < 32; y++ {
@@ -104,6 +88,12 @@ func (g *GraphicsHandler) drawGraphics(chip8 *CPU) {
 
 const pixelSize = 10
 
+func gocuiLoop(g *gocui.Gui) {
+	if err := g.MainLoop(); err != nil && err != gocui.ErrQuit {
+		log.Panicln(err)
+	}
+}
+
 func run() {
 
 	fileName := flag.String("file", "", "file name of the program to run")
@@ -112,17 +102,32 @@ func run() {
 	if *fileName == "" {
 		panic("file name not specified")
 	}
+	graphics := NewGraphics(bufferWidth, bufferHeight, pixelSize)
+	g, err := gocui.NewGui(gocui.OutputNormal)
+	if err != nil {
+		log.Panicln(err)
+	}
+	defer g.Close()
 
-	g := NewGraphics(bufferWidth, bufferHeight, pixelSize)
+	g.SetManagerFunc(func(gui *gocui.Gui) error {
+		return layout(gui, chip8)
+	})
 
-	g.win.Clear(colornames.Black)
+	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit); err != nil {
+		log.Panicln(err)
+	}
 
-	for !g.win.Closed() {
-		g.win.Clear(colornames.Black)
+	go gocuiLoop(g)
+
+	for !graphics.win.Closed() {
+		graphics.win.Clear(colornames.Black)
 		chip8.EmulationCycle()
-		g.drawGraphics(chip8)
-		g.win.Update()
-		g.setKeys(chip8)
+		g.Update(func(gui *gocui.Gui) error {
+			return updateLayout(gui, chip8)
+		})
+		graphics.drawGraphics(chip8)
+		graphics.win.Update()
+		graphics.setKeys(chip8)
 		// time.Sleep(1 * time.Millisecond)
 	}
 }
