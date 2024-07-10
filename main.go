@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	"log"
+	"time"
 
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/pixelgl"
@@ -74,9 +75,9 @@ func (g *GraphicsHandler) setKeys(chip8 *CPU) {
 	}
 }
 func (g *GraphicsHandler) drawGraphics(chip8 *CPU) {
-	for y := 0; y < 32; y++ {
-		for x := 0; x < 64; x++ {
-			if chip8.gfx[y*64+x] != 0 {
+	for y := 0; y < bufferHeight; y++ {
+		for x := 0; x < bufferWidth; x++ {
+			if chip8.gfx[y*bufferWidth+x] != 0 {
 				mat := g.scale. // Scale the sprite to 10x10 pixels
 						Moved(pixel.V(float64(x*g.pixelSize+g.pixelSize/2),
 						float64(g.windowHeight-y*g.pixelSize-g.pixelSize/2))) // Move it to the correct position
@@ -97,6 +98,7 @@ func gocuiLoop(g *gocui.Gui) {
 func run() {
 
 	fileName := flag.String("file", "", "file name of the program to run")
+	UPS := flag.Uint("ups", 30, "set the updates per second")
 	flag.Parse()
 	chip8 := NewChip8(*fileName)
 	if *fileName == "" {
@@ -119,16 +121,28 @@ func run() {
 
 	go gocuiLoop(g)
 
+	var interval int64 = int64(1000000 / *UPS)
+	var accumulator int64 = 0
+	lastTime := time.Now().UnixMicro()
+	var delta int64
+
 	for !graphics.win.Closed() {
-		graphics.win.Clear(colornames.Black)
-		chip8.EmulationCycle()
-		g.Update(func(gui *gocui.Gui) error {
-			return updateLayout(gui, chip8)
-		})
-		graphics.drawGraphics(chip8)
+
+		delta = time.Now().UnixMicro() - lastTime
+		lastTime += delta
+		accumulator += delta
+
+		for accumulator >= interval {
+			chip8.EmulationCycle()
+			g.Update(func(gui *gocui.Gui) error {
+				return updateLayout(gui, chip8)
+			})
+			graphics.win.Clear(colornames.Black)
+			graphics.drawGraphics(chip8)
+			graphics.setKeys(chip8)
+			accumulator -= interval
+		}
 		graphics.win.Update()
-		graphics.setKeys(chip8)
-		// time.Sleep(1 * time.Millisecond)
 	}
 }
 
