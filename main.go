@@ -131,16 +131,17 @@ func run() {
 		delta = time.Now().UnixMicro() - lastTime
 		lastTime += delta
 		accumulator += delta
-
-		for accumulator >= interval {
-			chip8.EmulationCycle()
-			g.Update(func(gui *gocui.Gui) error {
-				return updateLayout(gui, chip8)
-			})
+		if accumulator >= interval {
 			graphics.win.Clear(colornames.Black)
+			for accumulator >= interval {
+				chip8.EmulationCycle()
+				g.Update(func(gui *gocui.Gui) error {
+					return updateLayout(gui, chip8)
+				})
+				graphics.setKeys(chip8)
+				accumulator -= interval
+			}
 			graphics.drawGraphics(chip8)
-			graphics.setKeys(chip8)
-			accumulator -= interval
 		}
 		graphics.win.Update()
 	}
