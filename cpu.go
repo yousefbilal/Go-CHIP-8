@@ -378,15 +378,15 @@ func (c *CPU) FX33() {
 }
 
 func (c *CPU) FX55() {
-	//Store registers V0 through Vx in memory starting at location I
-	for i := uint16(0); i < SelectNibble(c.opcode, 2); i++ {
+	//Store registers V0 through Vx (including Vx) in memory starting at location I
+	for i := uint16(0); i <= SelectNibble(c.opcode, 2); i++ {
 		c.memory.memory[c.I+i] = c.V[i]
 	}
 }
 
 func (c *CPU) FX65() {
-	//Read registers V0 through Vx from memory starting at location I
-	for i := uint16(0); i < SelectNibble(c.opcode, 2); i++ {
+	//Read registers V0 through Vx (including Vx) from memory starting at location I
+	for i := uint16(0); i <= SelectNibble(c.opcode, 2); i++ {
 		c.V[i] = c.memory.memory[c.I+i]
 	}
 }
